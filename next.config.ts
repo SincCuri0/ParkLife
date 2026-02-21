@@ -9,6 +9,11 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
   reactCompiler: true,
   turbopack: {},
+  async redirects() {
+    return [
+      { source: "/groups", destination: "/discover", permanent: true },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

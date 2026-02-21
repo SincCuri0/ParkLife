@@ -16,15 +16,16 @@ export async function POST(request: Request) {
     }
 
     const response = NextResponse.json({ ok: true });
-    response.cookies.set({
-      name: "host_authenticated",
-      value: "true",
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       maxAge: 60 * 60 * 24,
-    });
+    };
+
+    response.cookies.set({ name: "host_authenticated", value: "true", ...cookieOptions });
+    response.cookies.set({ name: "vicarious_host", value: "true", ...cookieOptions });
 
     return response;
   } catch {

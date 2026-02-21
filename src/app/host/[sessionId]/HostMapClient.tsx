@@ -19,6 +19,7 @@ export default function HostMapClient({ sessionId, sessionName, initialPins }: H
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const [shareUrl, setShareUrl] = useState("");
+  const [endingSession, setEndingSession] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,6 +61,32 @@ export default function HostMapClient({ sessionId, sessionName, initialPins }: H
   }, [sessionId]);
 
   useEffect(() => {
+    let mounted = true;
+    const refreshPins = async () => {
+      const response = await fetch(`/api/sessions/${sessionId}/pins`, { cache: "no-store" });
+      if (!response.ok || !mounted) {
+        return;
+      }
+      const data = (await response.json()) as Pin[];
+      if (!mounted) {
+        return;
+      }
+      setPins(data);
+      setSelectedPin((prev) => (prev ? data.find((pin) => pin.id === prev.id) || null : null));
+    };
+
+    void refreshPins();
+    const interval = window.setInterval(() => {
+      void refreshPins();
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
     setShareUrl(`${window.location.origin}/map/${sessionId}`);
   }, [sessionId]);
 
@@ -85,6 +112,23 @@ export default function HostMapClient({ sessionId, sessionName, initialPins }: H
     setFocusRequest((value) => value + 1);
   };
 
+  const endSession = async () => {
+    const confirmed = window.confirm("End this session? Participants will no longer be able to post new pins.");
+    if (!confirmed) {
+      return;
+    }
+
+    setEndingSession(true);
+    const response = await fetch(`/api/sessions/${sessionId}/end`, { method: "POST" });
+    setEndingSession(false);
+
+    if (!response.ok) {
+      return;
+    }
+
+    window.location.href = "/host";
+  };
+
   return (
     <main className="h-screen w-full">
       <header className="flex h-12 items-center justify-between border-b border-slate-700 bg-slate-900 px-3 text-sm">
@@ -105,6 +149,14 @@ export default function HostMapClient({ sessionId, sessionName, initialPins }: H
           <Link href={shareUrl || `/map/${sessionId}`} className="text-emerald-300 hover:text-emerald-200">
             Open User View
           </Link>
+          <button
+            type="button"
+            onClick={() => void endSession()}
+            disabled={endingSession}
+            className="text-rose-300 hover:text-rose-200 disabled:opacity-60"
+          >
+            {endingSession ? "Ending..." : "End Session"}
+          </button>
           <Link href="/host/create" className="text-blue-300 hover:text-blue-200">
             New Session
           </Link>

@@ -4,7 +4,8 @@ const statusPriority: Record<PinStatus, number> = {
   active: 0,
   pending: 1,
   completed: 2,
-  rejected: 3,
+  resolved: 3,
+  rejected: 4,
 };
 
 export function sortHostPins(pins: Pin[]) {

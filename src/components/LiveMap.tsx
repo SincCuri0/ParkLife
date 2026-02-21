@@ -1,16 +1,18 @@
 "use client";
 
-import Map, { MapMouseEvent, NavigationControl } from "react-map-gl/mapbox";
+import Map, { Layer, MapMouseEvent, NavigationControl, Source } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAP_DEFAULT_CENTER } from "@/lib/constants";
-import { Pin } from "@/lib/types";
+import { Group, Pin } from "@/lib/types";
 import PinMarker from "./PinMarker";
 import type { MapRef } from "react-map-gl/mapbox";
 
 interface LiveMapProps {
-  sessionId: string;
+  sessionId?: string;
   pins: Pin[];
+  groups?: Group[];
+  visibleGroupIds?: string[];
   isHost?: boolean;
   focusPin?: Pin | null;
   focusRequest?: number;
@@ -21,6 +23,8 @@ interface LiveMapProps {
 export default function LiveMap({
   sessionId,
   pins,
+  groups = [],
+  visibleGroupIds,
   isHost,
   focusPin,
   focusRequest,
@@ -28,9 +32,48 @@ export default function LiveMap({
   onPinSelect,
 }: LiveMapProps) {
   const [viewState, setViewState] = useState(MAP_DEFAULT_CENTER);
+  const [renderTs] = useState(() => Date.now());
   const mapRef = useRef<MapRef | null>(null);
 
-  const visiblePins = useMemo(() => pins.filter((pin) => pin.status !== "rejected"), [pins]);
+  const enabledGroups = useMemo(
+    () => new Set(visibleGroupIds && visibleGroupIds.length ? visibleGroupIds : groups.map((group) => group.id)),
+    [groups, visibleGroupIds],
+  );
+  const visiblePins = useMemo(
+    () =>
+      pins.filter((pin) => {
+        if (pin.status === "rejected") return false;
+        if (pin.status === "resolved") {
+          const resolvedAt = pin.updated_at ? new Date(pin.updated_at) : new Date(pin.created_at);
+          const cutoff = new Date(renderTs - 24 * 60 * 60 * 1000);
+          if (resolvedAt <= cutoff) return false;
+        }
+        if (!pin.group_id) return true;
+        return enabledGroups.has(pin.group_id);
+      }),
+    [pins, enabledGroups, renderTs],
+  );
+  const groupGeoJson = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: groups
+        .filter((group) => enabledGroups.has(group.id) && !group.is_virtual && group.latitude !== null && group.longitude !== null)
+        .map((group) => ({
+          type: "Feature" as const,
+          geometry: {
+            type: "Point" as const,
+            coordinates: [group.longitude as number, group.latitude as number],
+          },
+          properties: {
+            id: group.id,
+            colour: group.colour,
+            radiusKm: group.radius_km,
+            isPrivate: !group.is_public,
+          },
+        })),
+    }),
+    [groups, enabledGroups],
+  );
 
   useEffect(() => {
     if (!focusPin || !mapRef.current) {
@@ -41,7 +84,7 @@ export default function LiveMap({
       center: [focusPin.longitude, focusPin.latitude],
       duration: 700,
     });
-  }, [focusRequest, focusPin?.id, focusPin?.latitude, focusPin?.longitude]);
+  }, [focusRequest, focusPin, focusPin?.id, focusPin?.latitude, focusPin?.longitude]);
 
   const handleMapClick = (event: MapMouseEvent) => {
     if (isHost || !onPinPlace) {
@@ -62,8 +105,34 @@ export default function LiveMap({
         reuseMaps
       >
         <NavigationControl position="bottom-right" />
+        {groupGeoJson.features.length > 0 ? (
+          <Source id="group-areas" type="geojson" data={groupGeoJson}>
+            <Layer
+              id="group-areas-fill"
+              type="circle"
+              paint={{
+                "circle-color": ["get", "colour"],
+                "circle-opacity": 0.15,
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  3,
+                  ["*", ["get", "radiusKm"], 2],
+                  12,
+                  ["*", ["get", "radiusKm"], 15],
+                  16,
+                  ["*", ["get", "radiusKm"], 40],
+                ],
+                "circle-stroke-color": ["get", "colour"],
+                "circle-stroke-opacity": 0.4,
+                "circle-stroke-width": 2,
+              }}
+            />
+          </Source>
+        ) : null}
         {visiblePins.map((pin) => (
-          <PinMarker key={`${sessionId}-${pin.id}`} pin={pin} onClick={(selected) => onPinSelect?.(selected)} />
+          <PinMarker key={`${sessionId || "map"}-${pin.id}`} pin={pin} onClick={(selected) => onPinSelect?.(selected)} />
         ))}
       </Map>
     </div>

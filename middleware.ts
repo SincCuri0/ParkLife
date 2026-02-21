@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/host/")) {
-    if (request.nextUrl.pathname === "/host" || request.nextUrl.pathname === "/host/create") {
-      return NextResponse.next();
-    }
+  const path = request.nextUrl.pathname;
 
-    const isAuthenticated = request.cookies.get("host_authenticated")?.value === "true";
-    if (!isAuthenticated) {
-      return NextResponse.redirect(new URL("/host", request.url));
+  const platformProtected = ["/map", "/groups/create", "/profile/settings", "/notifications"];
+  if (platformProtected.some((route) => path.startsWith(route))) {
+    const hasSession =
+      request.cookies.has("sb-access-token") ||
+      request.cookies.has("sb-refresh-token") ||
+      request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-"));
+    if (!hasSession) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
+  if (path.startsWith("/vicarious/host/")) {
+    const isHost = request.cookies.get("vicarious_host")?.value === "true";
+    if (!isHost) {
+      return NextResponse.redirect(new URL("/vicarious", request.url));
     }
   }
 
@@ -16,5 +25,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/host/:path*"],
+  matcher: [
+    "/map",
+    "/groups/create",
+    "/profile/settings",
+    "/notifications",
+    "/vicarious/host/:path+",
+  ],
 };

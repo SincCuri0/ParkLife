@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import BottomNavShell from "@/components/BottomNavShell";
 
 export const metadata: Metadata = {
   title: "ParkLife",
@@ -19,7 +20,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body className="bg-slate-950 text-slate-50 antialiased">{children}</body>
+      <body className="bg-slate-950 text-slate-50 antialiased">
+        {children}
+        <BottomNavShell />
+      </body>
     </html>
   );
 }
