@@ -1,0 +1,1 @@
+export const PARKLIFE_PROTOCOL_VERSION = "2026-02-v1";

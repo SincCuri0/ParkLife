@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/api/idempotency";
 import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 
 async function requireAdmin(groupId: string) {
@@ -54,42 +55,44 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const adminCheck = await requireAdmin(id);
-  if (adminCheck.error || !adminCheck.user) return adminCheck.error;
+  return withIdempotency(request, async () => {
+    const { id } = await params;
+    const adminCheck = await requireAdmin(id);
+    if (adminCheck.error || !adminCheck.user) return adminCheck.error;
 
-  try {
-    const body = await request.json();
-    const pluginKey = String(body.plugin_key || "").trim().toLowerCase();
-    if (!pluginKey) {
-      return NextResponse.json({ error: "plugin_key is required" }, { status: 400 });
+    try {
+      const body = await request.json();
+      const pluginKey = String(body.plugin_key || "").trim().toLowerCase();
+      if (!pluginKey) {
+        return NextResponse.json({ error: "plugin_key is required" }, { status: 400 });
+      }
+
+      const service = createServiceClient();
+      const { data, error } = await service
+        .from("group_plugins")
+        .upsert(
+          {
+            group_id: id,
+            plugin_key: pluginKey,
+            is_installed: true,
+            is_enabled: false,
+            installed_by: adminCheck.user.id,
+          },
+          { onConflict: "group_id,plugin_key" },
+        )
+        .select("group_id, plugin_key, is_installed, is_enabled, installed_at")
+        .single();
+
+      if (error) {
+        return NextResponse.json(
+          { error: error.message, hint: "Run group_plugins migration first." },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({ plugin: data }, { status: 201 });
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
-
-    const service = createServiceClient();
-    const { data, error } = await service
-      .from("group_plugins")
-      .upsert(
-        {
-          group_id: id,
-          plugin_key: pluginKey,
-          is_installed: true,
-          is_enabled: false,
-          installed_by: adminCheck.user.id,
-        },
-        { onConflict: "group_id,plugin_key" },
-      )
-      .select("group_id, plugin_key, is_installed, is_enabled, installed_at")
-      .single();
-
-    if (error) {
-      return NextResponse.json(
-        { error: error.message, hint: "Run group_plugins migration first." },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ plugin: data }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  });
 }

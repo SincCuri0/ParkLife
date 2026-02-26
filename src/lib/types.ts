@@ -49,6 +49,8 @@ export interface Profile {
   show_pin_history?: boolean;
   location_precision?: "neighbourhood" | "suburb" | "city";
   notification_prefs?: NotificationPrefs;
+  lamp_visibility_enabled?: boolean;
+  ai_data_sharing?: AiDataSharingPrefs;
 }
 
 export interface Group {
@@ -138,4 +140,12 @@ export interface NotificationPrefs {
   new_group_pin: { inapp: boolean; push: boolean };
   group_join: { inapp: boolean; push: boolean };
   pin_activated: { inapp: boolean; push: boolean };
+}
+
+export interface AiDataSharingPrefs {
+  location: boolean;
+  group_memberships: boolean;
+  pin_history: boolean;
+  activity_patterns: boolean;
+  calendar: boolean;
 }

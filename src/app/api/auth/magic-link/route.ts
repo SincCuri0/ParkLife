@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/api/idempotency";
 import { createServerClient } from "@/lib/supabase/server";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -37,28 +38,30 @@ function getMagicLinkOrigin(request: Request): string {
 }
 
 export async function POST(request: Request) {
-  try {
-    const { email } = await request.json();
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    if (!EMAIL_REGEX.test(normalizedEmail)) {
-      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+  return withIdempotency(request, async () => {
+    try {
+      const { email } = await request.json();
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      if (!EMAIL_REGEX.test(normalizedEmail)) {
+        return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+      }
+
+      const supabase = await createServerClient();
+      const origin = getMagicLinkOrigin(request);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: `${origin}${PROFILE_SETUP_PATH}`,
+        },
+      });
+
+      if (error) {
+        return NextResponse.json({ error: "Could not send magic link" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
-
-    const supabase = await createServerClient();
-    const origin = getMagicLinkOrigin(request);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: `${origin}${PROFILE_SETUP_PATH}`,
-      },
-    });
-
-    if (error) {
-      return NextResponse.json({ error: "Could not send magic link" }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  });
 }

@@ -1,4 +1,5 @@
 import MapClient from "./MapClient";
+import { featureFlags } from "@/lib/env";
 import { createAnonServerClient, createServerClient, createServiceClient } from "@/lib/supabase/server";
 import { Group, Pin } from "@/lib/types";
 
@@ -19,7 +20,7 @@ export default async function MapPage() {
       .limit(50);
 
     const resolvedGroups = ((groups as Group[]) || []).map((group) => ({ ...group, is_member: false }));
-    return <MapClient pins={[]} groups={resolvedGroups} />;
+    return <MapClient pins={[]} groups={resolvedGroups} localFirstEnabled={featureFlags.localFirstEnabled} />;
   }
 
   const service = createServiceClient();
@@ -95,5 +96,13 @@ export default async function MapPage() {
     };
   });
 
-  return <MapClient pins={pins} groups={groupsWithMembership} currentUserId={user.id} adminGroupIds={enabledVicariousAdminGroupIds} />;
+  return (
+    <MapClient
+      pins={pins}
+      groups={groupsWithMembership}
+      currentUserId={user.id}
+      adminGroupIds={enabledVicariousAdminGroupIds}
+      localFirstEnabled={featureFlags.localFirstEnabled}
+    />
+  );
 }

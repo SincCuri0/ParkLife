@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Migration Assets
+
+- SQL migrations for the sync plane, presence/assistant privacy layer, and Park Pound ledger live in `migrations/`.
+- API contract snapshot for frozen pre-migration routes is in `migrations/api_contract_snapshot_20260221.md`.
+- Feature flag reference values are in `config/feature-flags.example`.
+- Heatmap refresh is exposed at `POST/GET /api/map/heatmap/refresh` and scheduled every 5 minutes via `vercel.json` cron.
+- Set `HEATMAP_REFRESH_TOKEN` (or `CRON_SECRET`) so refresh requests are authorized.
+
 ## Getting Started
 
 First, run the development server:
@@ -19,6 +27,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Testing
+
+- Run regression tests: `npm test`
+- Watch mode: `npm run test:watch`
 
 ## Learn More
 

@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/map/heatmap/refresh",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+

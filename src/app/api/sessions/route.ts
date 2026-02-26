@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/api/idempotency";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -29,34 +30,36 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const { name, password } = await request.json();
+  return withIdempotency(request, async () => {
+    try {
+      const { name, password } = await request.json();
 
-    if (!name || typeof name !== "string") {
-      return NextResponse.json({ error: "Session name is required" }, { status: 400 });
+      if (!name || typeof name !== "string") {
+        return NextResponse.json({ error: "Session name is required" }, { status: 400 });
+      }
+
+      if (!password || typeof password !== "string") {
+        return NextResponse.json({ error: "Password is required" }, { status: 400 });
+      }
+
+      const id = nanoid(8).toLowerCase();
+      const hostPasswordHash = await bcrypt.hash(password, 10);
+
+      const supabase = createServiceClient();
+      const { error } = await supabase.from("sessions").insert({
+        id,
+        name: name.trim(),
+        host_password_hash: hostPasswordHash,
+        is_active: true,
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ id, name: name.trim() }, { status: 201 });
+    } catch {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
-
-    if (!password || typeof password !== "string") {
-      return NextResponse.json({ error: "Password is required" }, { status: 400 });
-    }
-
-    const id = nanoid(8).toLowerCase();
-    const hostPasswordHash = await bcrypt.hash(password, 10);
-
-    const supabase = createServiceClient();
-    const { error } = await supabase.from("sessions").insert({
-      id,
-      name: name.trim(),
-      host_password_hash: hostPasswordHash,
-      is_active: true,
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ id, name: name.trim() }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-  }
+  });
 }

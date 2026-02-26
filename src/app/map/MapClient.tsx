@@ -8,6 +8,7 @@ import LiveMap from "@/components/LiveMap";
 import NotificationItem from "@/components/NotificationItem";
 import PinPopup from "@/components/PinPopup";
 import PlacePinModal from "@/components/PlacePinModal";
+import { hydrateMergedRecords, reconcileScopes, upsertRecordsByScope } from "@/lib/local-store";
 import { createClient } from "@/lib/supabase/client";
 import { Group, Notification, Pin } from "@/lib/types";
 import HostControls from "@/plugins/vicarious/components/HostControls";
@@ -18,6 +19,7 @@ interface MapClientProps {
   groups: Group[];
   currentUserId?: string;
   adminGroupIds?: string[];
+  localFirstEnabled?: boolean;
 }
 
 function AdminVicariousOverlay({ groupId }: { groupId: string }) {
@@ -26,17 +28,30 @@ function AdminVicariousOverlay({ groupId }: { groupId: string }) {
   return <HostControls session={session} groupId={groupId} />;
 }
 
-export default function MapClient({ pins: initialPins, groups, currentUserId, adminGroupIds = [] }: MapClientProps) {
+export default function MapClient({
+  pins: initialPins,
+  groups,
+  currentUserId,
+  adminGroupIds = [],
+  localFirstEnabled = false,
+}: MapClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activePanel = searchParams.get("panel");
   const focusPinId = searchParams.get("pin");
+  const focusGroupId = searchParams.get("group");
+  const initialVisibleGroupIds = useMemo(() => {
+    if (focusGroupId && groups.some((group) => group.id === focusGroupId)) {
+      return [focusGroupId];
+    }
+    return groups.map((group) => group.id);
+  }, [focusGroupId, groups]);
 
   const [pins, setPins] = useState<Pin[]>(initialPins);
   const [allGroups, setAllGroups] = useState<Group[]>(groups);
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [placedCoords, setPlacedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>(groups.map((group) => group.id));
+  const [visibleGroupIds, setVisibleGroupIds] = useState<string[]>(initialVisibleGroupIds);
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -84,6 +99,60 @@ export default function MapClient({ pins: initialPins, groups, currentUserId, ad
     }
     return myGroups[0].id;
   }, [activeGroupId, myGroups]);
+  const localFirstScopes = useMemo(() => {
+    const scopeSet = new Set<string>(["map:cell:r"]);
+    if (currentUserId) {
+      scopeSet.add(`user:${currentUserId}`);
+    }
+    for (const groupId of visibleGroupIds) {
+      scopeSet.add(`group:${groupId}`);
+    }
+    return Array.from(scopeSet);
+  }, [currentUserId, visibleGroupIds]);
+
+  useEffect(() => {
+    setVisibleGroupIds(initialVisibleGroupIds);
+  }, [initialVisibleGroupIds]);
+
+  useEffect(() => {
+    if (!localFirstEnabled || !currentUserId) return;
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const pinsByScope = new Map<string, Pin[]>();
+        for (const pin of initialPins) {
+          const scope = pin.group_id ? `group:${pin.group_id}` : "map:cell:r";
+          if (!pinsByScope.has(scope)) {
+            pinsByScope.set(scope, []);
+          }
+          pinsByScope.get(scope)?.push(pin);
+        }
+
+        for (const [scope, scopedPins] of pinsByScope.entries()) {
+          await upsertRecordsByScope(scope, "pins", scopedPins);
+        }
+
+        const hydratedPins = await hydrateMergedRecords<Pin>(localFirstScopes, "pins");
+        if (!cancelled && hydratedPins.length > 0) {
+          setPins(hydratedPins);
+        }
+
+        await reconcileScopes(localFirstScopes);
+        const reconciledPins = await hydrateMergedRecords<Pin>(localFirstScopes, "pins");
+        if (!cancelled && reconciledPins.length > 0) {
+          setPins(reconciledPins);
+        }
+      } catch {
+        // Preserve current server-first behavior if local-first hydration fails.
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, initialPins, localFirstEnabled, localFirstScopes]);
 
   useEffect(() => {
     if (!currentUserId) return;
