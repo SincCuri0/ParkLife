@@ -5,7 +5,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - SQL migrations for the sync plane, presence/assistant privacy layer, and Park Pound ledger live in `migrations/`.
 - API contract snapshot for frozen pre-migration routes is in `migrations/api_contract_snapshot_20260221.md`.
 - Feature flag reference values are in `config/feature-flags.example`.
-- Heatmap refresh is exposed at `POST/GET /api/map/heatmap/refresh` and scheduled every 5 minutes via `vercel.json` cron.
+- Heatmap refresh is exposed at `POST/GET /api/map/heatmap/refresh` and scheduled once daily via `vercel.json` cron.
 - Set `HEATMAP_REFRESH_TOKEN` (or `CRON_SECRET`) so refresh requests are authorized.
 
 ## Getting Started

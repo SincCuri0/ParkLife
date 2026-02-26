@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/map/heatmap/refresh",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
-
