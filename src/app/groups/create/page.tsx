@@ -1,15 +1,19 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import Map, { MapMouseEvent, Marker } from "react-map-gl/mapbox";
-import "mapbox-gl/dist/mapbox-gl.css";
 import { MAP_DEFAULT_CENTER } from "@/lib/constants";
 
 interface GeocodeFeature {
   center: [number, number];
   place_name: string;
 }
+
+const GroupCreateMap = dynamic(() => import("./GroupCreateMap"), {
+  ssr: false,
+  loading: () => <div className="h-64 animate-pulse rounded border border-slate-700 bg-slate-800" />,
+});
 
 export default function GroupCreatePage() {
   const router = useRouter();
@@ -144,19 +148,14 @@ export default function GroupCreatePage() {
               </div>
             ) : null}
             {!isVirtual ? (
-              <div className="h-64 overflow-hidden rounded border border-slate-700">
-                <Map
-                  initialViewState={{ latitude, longitude, zoom: 11 }}
-                  mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-                  mapStyle="mapbox://styles/mapbox/streets-v12"
-                  onClick={(event: MapMouseEvent) => {
-                    setLatitude(event.lngLat.lat);
-                    setLongitude(event.lngLat.lng);
-                  }}
-                >
-                  <Marker longitude={longitude} latitude={latitude} />
-                </Map>
-              </div>
+              <GroupCreateMap
+                latitude={latitude}
+                longitude={longitude}
+                onPick={(lat, lng) => {
+                  setLatitude(lat);
+                  setLongitude(lng);
+                }}
+              />
             ) : null}
             <input
               value={locationLabel}

@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import { useMemo, useState } from "react";
 import { Pin, PinStatus } from "@/lib/types";
 import { PIN_COLOURS } from "@/lib/constants";

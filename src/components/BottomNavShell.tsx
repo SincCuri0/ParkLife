@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import BottomNav from "./BottomNav";
+import { fetchNotificationsSnapshot } from "@/lib/notifications-client";
 import { createClient } from "@/lib/supabase/client";
 
 export default function BottomNavShell() {
@@ -35,13 +36,12 @@ export default function BottomNavShell() {
       }
 
       setCurrentUserId(user.id);
-      const response = await fetch("/api/notifications");
-      if (!response.ok) {
+      try {
+        const snapshot = await fetchNotificationsSnapshot();
+        setUnreadCount(snapshot.unread_count || 0);
+      } catch {
         setUnreadCount(0);
-        return;
       }
-      const payload = await response.json();
-      setUnreadCount(payload.unread_count || 0);
     };
 
     void run();

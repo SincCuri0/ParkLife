@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import NotificationPanel from "@/components/NotificationPanel";
+import { fetchNotificationsSnapshot } from "@/lib/notifications-client";
 import { createClient } from "@/lib/supabase/client";
 
 interface NotificationBellProps {
@@ -16,10 +17,12 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
     const supabase = createClient();
 
     const refresh = async () => {
-      const response = await fetch("/api/notifications");
-      if (!response.ok) return;
-      const data = await response.json();
-      setUnread(data.unread_count || 0);
+      try {
+        const snapshot = await fetchNotificationsSnapshot();
+        setUnread(snapshot.unread_count || 0);
+      } catch {
+        // Keep current badge count on transient failures.
+      }
     };
 
     void refresh();

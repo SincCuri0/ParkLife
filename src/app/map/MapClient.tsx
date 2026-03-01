@@ -9,6 +9,7 @@ import NotificationItem from "@/components/NotificationItem";
 import PinPopup from "@/components/PinPopup";
 import PlacePinModal from "@/components/PlacePinModal";
 import { hydrateMergedRecords, reconcileScopes, upsertRecordsByScope } from "@/lib/local-store";
+import { fetchNotificationsSnapshot } from "@/lib/notifications-client";
 import { createClient } from "@/lib/supabase/client";
 import { Group, Notification, Pin } from "@/lib/types";
 import HostControls from "@/plugins/vicarious/components/HostControls";
@@ -129,9 +130,11 @@ export default function MapClient({
           pinsByScope.get(scope)?.push(pin);
         }
 
-        for (const [scope, scopedPins] of pinsByScope.entries()) {
-          await upsertRecordsByScope(scope, "pins", scopedPins);
-        }
+        await Promise.all(
+          Array.from(pinsByScope.entries()).map(([scope, scopedPins]) =>
+            upsertRecordsByScope(scope, "pins", scopedPins),
+          ),
+        );
 
         const hydratedPins = await hydrateMergedRecords<Pin>(localFirstScopes, "pins");
         if (!cancelled && hydratedPins.length > 0) {
@@ -172,15 +175,19 @@ export default function MapClient({
     let mounted = true;
     const loadNotifications = async (includeList: boolean) => {
       if (includeList) setNotificationsLoading(true);
-      const response = await fetch("/api/notifications");
       if (!mounted) return;
-      if (!response.ok) {
+      let data: { notifications?: Notification[]; unread_count?: number } | null = null;
+      try {
+        data = includeList
+          ? await fetchNotificationsSnapshot({ force: true })
+          : await fetchNotificationsSnapshot();
+      } catch {
         if (includeList) setNotifications([]);
         setUnreadCount(0);
         if (includeList) setNotificationsLoading(false);
         return;
       }
-      const data = await response.json();
+      if (!data) return;
       if (includeList) {
         setNotifications(data.notifications || []);
         setNotificationsLoading(false);

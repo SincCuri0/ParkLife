@@ -113,9 +113,15 @@ export async function hydrateMergedRecords<T extends { id: string }>(
   documentType: string,
 ) {
   const merged = new Map<string, T>();
-  for (const scopeKey of scopeKeys) {
-    const scope = await ensureScope(scopeKey);
-    await scope.ready;
+  const scopes = await Promise.all(
+    scopeKeys.map(async (scopeKey) => {
+      const scope = await ensureScope(scopeKey);
+      await scope.ready;
+      return scope;
+    }),
+  );
+
+  for (const scope of scopes) {
     const map = getDocumentMap(scope.doc, documentType);
     map.forEach((value, key) => {
       if (!value || typeof value !== "object") return;

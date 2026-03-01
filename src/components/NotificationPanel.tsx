@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NotificationItem from "@/components/NotificationItem";
+import {
+  clearNotificationsSnapshot,
+  fetchNotificationsSnapshot,
+  setNotificationsSnapshot,
+} from "@/lib/notifications-client";
 import { Notification } from "@/lib/types";
 
 interface NotificationPanelProps {
@@ -19,12 +24,22 @@ export default function NotificationPanel({ open, onClose, onUnreadChange }: Not
     if (!open) return;
 
     const load = async () => {
-      const response = await fetch("/api/notifications");
-      if (!response.ok) return;
-      const data = await response.json();
-      setNotifications(data.notifications || []);
+      try {
+        const data = await fetchNotificationsSnapshot();
+        setNotifications(data.notifications || []);
+      } catch {
+        return;
+      }
       onUnreadChange?.(0);
       await fetch("/api/notifications/read", { method: "POST" });
+      setNotifications((prev) => {
+        const updated = prev.map((entry) => ({ ...entry, is_read: true }));
+        setNotificationsSnapshot({
+          notifications: updated,
+          unread_count: 0,
+        });
+        return updated;
+      });
     };
 
     void load();
@@ -32,6 +47,7 @@ export default function NotificationPanel({ open, onClose, onUnreadChange }: Not
 
   const openNotification = async (notification: Notification) => {
     await fetch(`/api/notifications/${notification.id}`, { method: "PATCH" });
+    clearNotificationsSnapshot();
 
     const path = notification.pin_id
       ? `/map?pin=${notification.pin_id}`
@@ -54,7 +70,14 @@ export default function NotificationPanel({ open, onClose, onUnreadChange }: Not
             type="button"
             onClick={() => {
               void fetch("/api/notifications/read", { method: "POST" });
-              setNotifications((prev) => prev.map((entry) => ({ ...entry, is_read: true })));
+              setNotifications((prev) => {
+                const updated = prev.map((entry) => ({ ...entry, is_read: true }));
+                setNotificationsSnapshot({
+                  notifications: updated,
+                  unread_count: 0,
+                });
+                return updated;
+              });
               onUnreadChange?.(0);
             }}
             className="text-xs text-slate-300"
